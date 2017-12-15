@@ -1,0 +1,42 @@
+:linkattrs:
+
+= Deploy All-in-one OpenShift 
+
+The idea of this playbook is to do a all-in-one OpenShift (`oc cluster up`) in cloud, as cloud vms does not allow nested virtualization this does 
+a mimic of https://github.com/minishift/minishift[Minishift] inside the cloud instance.
+
+WARNING: This is still work in progress and documentation will be updated and more cloud modules will be added
+
+NOTE: This is not intended for production use , only for demos
+
+== Setting up Ansible
+
+You can use your standard way of setting up ansible but using https://virtualenv.pypa.io/en/stable/[virtualenv] makes a isolated ansible installation, 
+link:./requirements.txt[Pip Modules] that are required to `Google Compute Modules` refer to http://docs.ansible.com/ansible/latest/list_of_cloud_modules.html[Ansible Cloud Modules]
+for other cloud provider modules
+
+== Ansible Variables
+
+Refer to link:./vars.example.yaml for needed ansible variables, add your customization to it and rename the file as `vars.yaml`
+
+== Creating
+
+[source,sh]
+----
+ansible-playbook gce_demo_setup.yaml <1>
+----
+
+<1> Sets up all in one OpensShift Cluster on GCE 
+
+== Admin User
+
+By default an admin user called `admin` with password `admin` is created
+
+== Deleting
+
+[source,sh]
+----
+ansible-playbook gce_demo_cleanup.yaml <1>
+----
+
+<1> Cleans up all in one Openshift Cluster on GCE 

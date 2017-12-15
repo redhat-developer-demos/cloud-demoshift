@@ -1,0 +1,15 @@
+- name: Setup Green Cloud Demo Instances
+  hosts: localhost
+  vars_files:
+   - vars.yaml
+  tasks:
+    - name: Delete Instances
+      gce:
+        instance_names: "greencloud-demo-iteration"
+        zone: "{{zone}}"
+        project_id: "{{project_id}}"
+        credentials_file: "{{sa_credentials_file}}"
+        service_account_email: "{{sa_account_email}}"
+        state: absent
+      tags:
+       - delete

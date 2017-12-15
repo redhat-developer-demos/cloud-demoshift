@@ -1,0 +1,75 @@
+---
+- name: Setup Cloud Demo Instances
+  hosts: localhost
+  vars_files:
+   - vars.yaml
+  tasks:
+    - name: Create Instances
+      gce:
+        instance_names: "{{instance_name_prefix}}"
+        zone: "{{zone}}"
+        machine_type: "{{machine_type}}"
+        image_family: "centos-7"
+        num_instances: "{{number_of_instances}}"
+        project_id: "{{project_id}}"
+        credentials_file: "{{sa_credentials_file}}"
+        service_account_email: "{{sa_account_email}}"
+        service_account_permissions: "{{sa_permissions}}"
+        disk_size: "40"
+        metadata : '{ "startup-script" : "yum -y update" }'
+        state: present
+        tags:
+            - http-server
+            - https-server
+            - openshift-master
+      register: gce
+
+    - name: Create OpenShift Master Console Firewall Rule
+      gce_net: 
+        project_id: "{{project_id}}"
+        service_account_email: "{{sa_account_email}}"
+        credentials_file: "{{sa_credentials_file}}"
+        fwname: "openshift-master-console"
+        name: "default"
+        allowed: "tcp:8443"
+        ipv4_range: "0.0.0.0/0"
+        target_tags: "openshift-master"
+        state: present      
+
+#    - debug: msg={{gce}}
+
+    - name: Save Inventory Hosts
+      add_host:
+        hostname: "{{ item.public_ip }}"
+        groups: gce_instances
+      with_items: "{{ gce.instance_data }}"
+
+    
+    - name: Create Inventory Hosts
+      ini_file:
+        path: ./inventory
+        create: yes
+        section: "gce_instances"
+        option: "{{item.name}} ansible_ssh_host"
+        value: "{{ item.public_ip }}"
+        no_extra_spaces: yes
+      with_items: "{{ gce.instance_data }}"
+
+    - name: Wait for SSH for instances
+      wait_for:
+        delay: 1
+        host: "{{ item.public_ip }}"
+        port: 22
+        state: started
+        timeout: 30
+      with_items: "{{ gce.instance_data }}"
+        
+- name: Setup All-in-one OpenShift
+  hosts: gce_instances
+  become: yes
+  become_method: sudo
+  roles:
+    - openshift
+  tags:
+    - config
+

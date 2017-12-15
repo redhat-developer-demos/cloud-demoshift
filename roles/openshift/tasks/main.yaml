@@ -1,0 +1,80 @@
+- name: Install essential packages
+  yum:
+    name: "{{item}}"
+    state: present
+  with_items:
+    - docker
+    - vim
+    - wget 
+
+- name: upgrade all packages
+  yum:
+    name: '*'
+    state: latest
+
+- name: Download OpenShift Client Tools
+  unarchive:
+    src: https://github.com/openshift/origin/releases/download/v3.7.0/openshift-origin-client-tools-v3.7.0-7ed6862-linux-64bit.tar.gz
+    dest: /usr/bin
+    extra_opts:
+    - "--strip-components=1"
+    - "--wildcards"
+    - "**/oc"
+    creates: /usr/bin/oc
+    remote_src: yes
+
+- name: enable ip foward for oc cluster up
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: 1
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: patch docker daemon with insecure registry
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+
+- name: enable and start docker
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: see if oc cluster is running
+  uri:
+   url: "https://localhost:8443/console"
+   validate_certs: false
+  ignore_errors: True
+  register: oc_cluster_status
+
+# - debug: msg={{oc_cluster_status}}
+
+- name: bring up oc cluster
+  shell: |
+     oc cluster up --public-hostname="{{ansible_ssh_host}}" --routing-suffix="{{ansible_ssh_host}}.nip.io"
+  when: oc_cluster_status.status != 200
+
+- name: "wait for oc cluster up"
+  wait_for:
+    delay: 1
+    host: "{{ ansible_ssh_host }}"
+    port: 8443
+    timeout: 60
+  when: oc_cluster_status.status != 200
+
+- name: see if oc cluster is running
+  uri:
+   url: "https://localhost:8443/console"
+   validate_certs: false
+  register: oc_cluster_status
+
+# TODO: copy the admin.kubeconfig to the user home /.kube for easier oc login -u system:admin inside vm
+- name: add admin user
+  shell: |
+     KUBE_CONFIG=/var/lib/origin/openshift.local.config/master/admin.kubeconfig
+     oc login -u system:admin
+     oc create user admin --full-name=admin
+     oc adm policy add-cluster-role-to-user cluster-admin admin
+  when: oc_cluster_status.status == 200
